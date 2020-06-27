@@ -9,3 +9,4 @@
 - [ ] Approach 2: Random Image belonging to class c<sub>2</sub>, Expected c<sub>2</sub>
 - [ ] Approach 3a: Random Noise, Expected Mismatch
 - [ ] Approach 3b: Inverted Image, Expected Mismatch
+- [ ] Approach 4: Inverted Image, Expected Inverted

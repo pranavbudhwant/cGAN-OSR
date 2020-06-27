@@ -3,7 +3,7 @@
 ![cGAN-OSR](draw/cGAN-OSR.jpg?raw=true "cGAN-OSR")
 
 
-#### Approaches
+#### TO-DO Experiments
 - [ ] Approach 1a: Random Noise, Expected Fake
 - [ ] Approach 1b: Inverted Image, Expected Fake
 - [ ] Approach 2: Random Image belonging to class c<sub>2</sub>, Expected c<sub>2</sub>

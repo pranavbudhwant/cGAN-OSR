@@ -5,16 +5,16 @@ Created on Tue Apr 21 14:45:29 2020
 @author: prnvb
 """
 
-from keras import regularizers, initializers, constraints
-import keras.backend as K
-from keras.layers import Layer, Input, InputSpec
-from keras.models import Model
+from tensorflow.keras import regularizers, initializers, constraints
+import tensorflow.keras.backend as K
+from tensorflow.keras.layers import Layer, Input, InputSpec
+from tensorflow.keras.models import Model
 import tensorflow as tf
 
 import random
 import numpy as np
-from keras.optimizers import Adam
-from keras.layers import BatchNormalization, Conv2D, Dense, Flatten
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import BatchNormalization, Conv2D, Dense, Flatten
 
 class ConditionalAffine(Layer):
     def __init__(self,num_classes=1,

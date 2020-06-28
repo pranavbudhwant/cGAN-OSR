@@ -4,10 +4,12 @@ from tensorflow.python.keras.layers import Input, Dense, Conv2D, Add, Dot, Conv2
 from tensorflow.python.keras.models import Model, Sequential
 from tensorflow.python.keras import backend as K
 from tensorflow.keras.utils import plot_model
+from SpectralNormalizationTF import DenseSN, ConvSN2D, EmbeddingSN
+
+#from tensorflow.keras.layers.pooling import _GlobalPooling2D
 from tensorflow.python.keras.layers.pooling import GlobalPooling2D
 
-from utils.SN import SpectralNormalization
-from utils.CBN import ConditionalAffine
+from CBN import ConditionalAffine
 
 class GlobalSumPooling2D(GlobalPooling2D):
     """Global sum pooling operation for spatial data.
@@ -81,8 +83,8 @@ def ResBlock(input_shape, sampling=None, trainable_sortcut=True,
     res_block_1     = Activation('relu')(res_block_1)
     
     if spectral_normalization:
-        ConvSN2D = SpectralNormalization(Conv2D(channels, k_size , strides=1,padding='same',kernel_initializer='glorot_uniform'))
-        res_block_1 = ConvSN2D(res_block_1)
+        res_block_1     = ConvSN2D(channels, k_size , strides=1, padding='same',
+                           kernel_initializer='glorot_uniform')(res_block_1)
     else:
         res_block_1     = Conv2D(channels, k_size , strides=1, padding='same',
                              kernel_initializer='glorot_uniform')(res_block_1)
@@ -106,9 +108,8 @@ def ResBlock(input_shape, sampling=None, trainable_sortcut=True,
     res_block_2     = Activation('relu')(res_block_2)
     
     if spectral_normalization:
-        ConvSN2D = SpectralNormalization(Conv2D(channels, k_size, strides=1, padding='same',
-                             kernel_initializer='glorot_uniform'))
-        res_block_2     = ConvSN2D(res_block_2)
+        res_block_2     = ConvSN2D(channels, k_size , strides=1, padding='same',
+                             kernel_initializer='glorot_uniform')(res_block_2)
     else:
         res_block_2     = Conv2D(channels, k_size , strides=1, padding='same',
                              kernel_initializer='glorot_uniform')(res_block_2)
@@ -120,9 +121,8 @@ def ResBlock(input_shape, sampling=None, trainable_sortcut=True,
     
     if trainable_sortcut:
         if spectral_normalization:
-            ConvSN2D = SpectralNormalization(Conv2D(channels, 1 , strides=1, padding='same',
-                         kernel_initializer='glorot_uniform'))
-            short_cut = ConvSN2D(res_block_input)
+            short_cut = ConvSN2D(channels, 1 , strides=1, padding='same',
+                         kernel_initializer='glorot_uniform')(res_block_input)
         else:
             short_cut = Conv2D(channels, 1 , strides=1, padding='same',
                        kernel_initializer='glorot_uniform')(res_block_input)
@@ -158,11 +158,11 @@ def BuildGenerator(summary=True, bn_momentum=0.9, noise=False,
                    bn_epsilon=0.00002, cbn=0, spectral_normalization=False,
                    name='Generator', plot=False):
     
-    # conv2D = Conv2D
-    # dense = Dense
-    # if spectral_normalization:
-    #     conv2D = ConvSN2D
-    #     dense = DenseSN
+    conv2D = Conv2D
+    dense = Dense
+    if spectral_normalization:
+        conv2D = ConvSN2D
+        dense = DenseSN
         
     model_input = Input(shape=in_shape)
     if noise:
@@ -178,11 +178,7 @@ def BuildGenerator(summary=True, bn_momentum=0.9, noise=False,
     if noise:
         x = Concatenate()([model_input,model_input_noise])
     
-    if spectral_normalization:
-        DenseSN = SpectralNormalization(Dense(dims, kernel_initializer='glorot_uniform'))
-        h = DenseSN(x)
-    else:
-        h = Dense(dims, kernel_initializer='glorot_uniform')(x)
+    h = dense(dims, kernel_initializer='glorot_uniform')(x)
     h = Reshape(init_shape)(h)
     
     resblock_1  = ResBlock(input_shape=init_shape, sampling='up', 
@@ -226,11 +222,8 @@ def BuildGenerator(summary=True, bn_momentum=0.9, noise=False,
         
     h = Activation('relu')(h)
     
-    if spectral_normalization:
-        ConvSN2D = SpectralNormalization(Conv2D(out_channels, kernel_size=3, strides=1, padding='same', activation='tanh'))
-        model_output = ConvSN2D(h)
-    else:
-        model_output= Conv2D(out_channels, kernel_size=3, strides=1, padding='same', activation='tanh')(h)
+    model_output= conv2D(out_channels, kernel_size=3, strides=1, 
+                         padding='same', activation='tanh')(h)
     
     inputs = [model_input]
     if noise:
@@ -256,29 +249,20 @@ def BuildDiscriminator(summary=True, in_shape = (32,32,3),
                        name='Discriminator', 
                        plot=False):
     
-    # dense = Dense
-    # embedding = Embedding
-    # if spectral_normalization:
-    #     dense = DenseSN
-    #     embedding = EmbeddingSN
+    dense = Dense
+    embedding = Embedding
+    if spectral_normalization:
+        dense = DenseSN
+        embedding = EmbeddingSN
     
     if cbn:
         # label input
         in_label = Input(shape=(1,))
         # embedding for categorical input
-        if spectral_normalization:
-            EmbeddingSN = SpectralNormalization(Embedding(cbn, 50))
-            li = EmbeddingSN(in_label)
-        else:
-            li = Embedding(cbn, 50)(in_label)
+        li = embedding(cbn, 50)(in_label)
         # scale up to image dimensions with linear activation
         n_nodes = in_shape[0] * in_shape[1]
-
-        if spectral_normalization:
-            DenseSN = SpectralNormalization(Dense(n_nodes))
-            li = DenseSN(li)
-        else:
-            li = Dense(n_nodes)(li)
+        li = dense(n_nodes)(li)
         # reshape to additional channel
         li = Reshape((in_shape[0], in_shape[1], 1))(li)
         # image input
@@ -322,12 +306,7 @@ def BuildDiscriminator(summary=True, in_shape = (32,32,3),
     h           = resblock_4(h)
     h           = Activation('relu')(h)
     h           = GlobalSumPooling2D()(h)
-
-    if spectral_normalization:
-        DenseSN = SpectralNormalization(Dense(1,kernel_initializer='glorot_uniform'))
-        model_output = DenseSN(h)
-    else:
-        model_output= Dense(1,kernel_initializer='glorot_uniform')(h)
+    model_output= dense(1,kernel_initializer='glorot_uniform')(h)
     
     if cbn:
         model = Model([in_image,in_label], model_output, name=name)
@@ -350,9 +329,9 @@ def BuildDiscriminatorCS(summary=True, in_shape = (32,32,3),
                        num_classes=10,feat=False,
                        plot=False):
     
-    # dense = Dense
-    # if spectral_normalization:
-    #     dense = DenseSN
+    dense = Dense
+    if spectral_normalization:
+        dense = DenseSN
     
     model_input = Input(shape=in_shape)
     resblock_1  = ResBlock(input_shape=in_shape, channels=128, 
@@ -383,12 +362,7 @@ def BuildDiscriminatorCS(summary=True, in_shape = (32,32,3),
     h           = Activation('relu')(h)
     h           = GlobalSumPooling2D()(h)
     interm_output = h
-
-    if spectral_normalization:
-        DenseSN = SpectralNormalization(Dense(num_classes+1,kernel_initializer='glorot_uniform'))
-        model_output = DenseSN(h)
-    else:
-        model_output= Dense(num_classes+1,kernel_initializer='glorot_uniform')(h)
+    model_output= dense(num_classes+1,kernel_initializer='glorot_uniform')(h)
     
     if feat:
         model = Model(model_input, model_output, name=name)
@@ -505,7 +479,7 @@ if __name__ == '__main__':
     
     
     print('DCGAN_Discriminator')
-    model = BuildDiscriminator()
+    model = BuildDiscriminator(resnet=False)
     plot_model(model, show_shapes=True, to_file=DIR+'DCGAN_Discriminator.png')
     
     print('ResNet_Discriminator')
@@ -519,6 +493,7 @@ if __name__ == '__main__':
     print('Generator_resblock_1')
     model = ResBlock(input_shape=(4,4,256), sampling='up',  name='Generator_resblock_1')
     plot_model(model, show_shapes=True, to_file=DIR+'Generator_resblock_1.png')
+
     
     print('Discriminator_resblock_Down_1')
     model = ResBlock(input_shape=(32,32,3), channels=128, sampling='down', spectral_normalization=True, name='Discriminator_resblock_Down_1')

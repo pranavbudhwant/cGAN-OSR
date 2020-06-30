@@ -4,6 +4,11 @@
 
 
 #### TO-DO Experiments
+##### Stage 1
+- [ ] Without Autoencoder Training
+- [ ] With Autoencoder Training, to ensure encoder captures all information required for reconstruction
+
+##### Stage 2
 - [ ] Approach 1a: Random Noise, Expected Fake
 - [ ] Approach 1b: Inverted Image, Expected Fake
 - [ ] Approach 2: Random Image belonging to class c<sub>2</sub>, Expected c<sub>2</sub>

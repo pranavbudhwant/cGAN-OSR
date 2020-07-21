@@ -1,6 +1,6 @@
 import sys
 sys.path.append("..")
-from data_utils import sample_known_unknown_classes
+from utils.data import sample_known_unknown_classes
 
 setup = {}
 
@@ -36,20 +36,20 @@ setup['dataset'] = ds_dict
 setup['mismatch_expected_recon'] = 'noise' #invert #image
 setup['mismatch_expected_discriminator'] = 'fake' #image #mismatch #invert
 
-#Training Settings
+#Training Settings - TODO Separate dict for stage1, stage2 training
 train_dict = {}
 train_dict['batch_size'] = 64
 train_dict['training_ratio'] = 2
 train_dict['epochs'] = 150
 train_dict['sample_mismatch_every_epoch'] = True
-setup['train'] = train_dict
+setup['stage2_train'] = train_dict
 
 #Adam Optimizer Settings
 opt_dict = {}
 opt_dict['beta_1'] = 0.
 opt_dict['beta_2'] = 0.9
 opt_dict['lr'] = 2e-4
-setup['optimizer'] = opt_dict
+setup['stage2_optimizer'] = opt_dict
 
 #Debug Settings
 debug_dict = {}
@@ -92,6 +92,10 @@ elif setup['mismatch_expected_discriminator'] == 'invert':
 model_dict['discriminator'] = discriminator_dict
 setup['model'] = model_dict
 
+#Checkpointing Settings
+checkpoint_dict = {}
+checkpoint_dict['classifier_save_dir'] = 'models/classifier/'+setup['dataset']['name']+'/'
+setup['checkpoint'] = checkpoint_dict
 
 #Setup Approaches
 experiment_parameters = {}

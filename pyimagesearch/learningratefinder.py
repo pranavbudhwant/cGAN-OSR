@@ -1,6 +1,6 @@
 # import the necessary packages
-from keras.callbacks import LambdaCallback
-from keras import backend as K
+from tensorflow.keras.callbacks import LambdaCallback
+from tensorflow.keras import backend as K
 import matplotlib.pyplot as plt
 import numpy as np
 import tempfile
@@ -77,7 +77,7 @@ class LearningRateFinder:
 		lr *= self.lrMult
 		K.set_value(self.model.optimizer.lr, lr)
 
-	def find(self, trainData, startLR, endLR, useGen, class_weights=None, epochs=None,
+	def find(self, trainData, startLR, endLR, useGen, epochs=None,
 		stepsPerEpoch=None, batchSize=32, sampleSize=2048,
 		verbose=1):
 		# reset our class-specific variables
@@ -134,9 +134,8 @@ class LearningRateFinder:
 
 		# check to see if we are using a data iterator
 		if useGen:
-			self.model.fit_generator(
-				trainData,
-				class_weight = class_weights,
+			self.model.fit(
+				x=trainData,
 				steps_per_epoch=stepsPerEpoch,
 				epochs=epochs,
 				verbose=verbose,
@@ -146,8 +145,7 @@ class LearningRateFinder:
 		else:
 			# train our model using Keras' fit method
 			self.model.fit(
-				trainData[0], trainData[1],
-				class_weight = class_weights,
+				x=trainData[0], y=trainData[1],
 				batch_size=batchSize,
 				epochs=epochs,
 				callbacks=[callback],

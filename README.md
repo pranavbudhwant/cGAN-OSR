@@ -8,6 +8,8 @@
 - [ ] Without Autoencoder Training
 - [ ] With Autoencoder Training, to ensure encoder captures all information required for reconstruction
 - [ ] With Variational Autoencoder Training
+    - [ ] Separate Decoder, Generator 
+    - [ ] Decoder == Generator
 
 ##### Stage 2
 - [ ] Approach 1a: Random Noise, Expected Fake

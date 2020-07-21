@@ -7,6 +7,7 @@
 ##### Stage 1
 - [ ] Without Autoencoder Training
 - [ ] With Autoencoder Training, to ensure encoder captures all information required for reconstruction
+- [ ] With Variational Autoencoder Training
 
 ##### Stage 2
 - [ ] Approach 1a: Random Noise, Expected Fake

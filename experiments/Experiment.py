@@ -10,12 +10,14 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 from tensorflow.keras.datasets import mnist, cifar10, cifar100
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import load_model
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
 import joblib
-import pandas as pd
+import os
 
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -25,7 +27,7 @@ from mpl_toolkits.mplot3d import Axes3D
 #Local modules
 from config import experiment_parameters
 from utils.data import onehotencode, get_mapped_labels
-from model import BuildEncoder, BuildClassifier
+from model import BuildEncoder, BuildClassifier, GlobalSumPooling2D
 from pyimagesearch.learningratefinder import LearningRateFinder
 from pyimagesearch.clr_callback import CyclicLR
 
@@ -41,6 +43,17 @@ def auroc(y_true, y_pred):
 class Experiment:
     def __init__(self, experiment_params):
         self.params = experiment_params
+
+        #Make checkpoint dirs
+        if not os.path.exists(BASE_DIR+self.params['checkpoint']['classifier_save_dir']):
+            os.makedirs(BASE_DIR+self.params['checkpoint']['classifier_save_dir'])
+            print('Classifier checkpoint directory created')
+        
+        #Make debug dir
+        if not os.path.exists(BASE_DIR+self.params['debug']['dir']):
+            os.makedirs(BASE_DIR+self.params['debug']['dir'])
+            print('Debug directory creted')
+
     
     def load_classifier_data(self, summary=False):
         dataset_params = self.params['dataset']
@@ -103,18 +116,24 @@ class Experiment:
             print("x_test :", self.x_test.shape)
             print("y_test :", self.y_test_ohe.shape)
 
-    def load_stage1_models(self, summary=True):
-        #Stage 1 Models: Encoder, Optional Decoder, Classifier
-        img_shape = self.params['dataset']['image_shape']
-        latent_dim = self.params['model']['latent_dim']
+    def load_stage1_models(self, summary=True, file=None):
+        if file:
+            self.classifier = load_model(BASE_DIR+self.params['checkpoint']['classifier_save_dir']+file,
+                                custom_objects={'GlobalSumPooling2D':GlobalSumPooling2D,
+                                'auroc':auroc})
+            self.encoder = self.classifier.layers[1]
+        else:
+            #Stage 1 Models: Encoder, Optional Decoder, Classifier
+            img_shape = self.params['dataset']['image_shape']
+            latent_dim = self.params['model']['latent_dim']
 
-        #Build encoder
-        self.encoder = BuildEncoder(in_shape=img_shape, latent_dim=latent_dim,
-                                summary=summary)
-        
-        #Build classifier
-        self.classifier = BuildClassifier(self.encoder, in_shape=img_shape, 
-                        num_classes = len(self.params['dataset']['known_classes']),summary=summary)
+            #Build encoder
+            self.encoder = BuildEncoder(in_shape=img_shape, latent_dim=latent_dim,
+                                    summary=summary)
+            
+            #Build classifier
+            self.classifier = BuildClassifier(self.encoder, in_shape=img_shape, 
+                            num_classes = len(self.params['dataset']['known_classes']),summary=summary)
         
         #TODO Build Optional Decoder
 
@@ -167,21 +186,27 @@ class Experiment:
         joblib.dump(self.classifier_train_history.history, BASE_DIR+self.params['checkpoint']['classifier_save_dir']+'classifier_train_history_epoch_'+str(epochs)+'.pkl')
 
         #Plot loss
-        fig = plt.figure()
+        #fig = 
+        plt.figure()
+        #plt.subplot(131)
         plt.plot(self.classifier_train_history.history['loss'],label='loss')
         plt.plot(self.classifier_train_history.history['val_loss'],label='val_loss')
         plt.legend(loc='best')
         plt.show()
 
         #Plot Accuracy
-        fig = plt.figure()
+        #fig = 
+        plt.figure()
+        #plt.subplot(132)
         plt.plot(self.classifier_train_history.history['categorical_accuracy'],label='categorical_accuracy')
         plt.plot(self.classifier_train_history.history['val_categorical_accuracy'],label='val_categorical_accuracy')
         plt.legend(loc='best')
         plt.show()
 
         #Plot AUROC
-        fig = plt.figure()
+        #fig = 
+        plt.figure()
+        #plt.subplot(133)
         plt.plot(self.classifier_train_history.history['auroc'],label='auroc')
         plt.plot(self.classifier_train_history.history['val_auroc'],label='val_auroc')
         plt.legend(loc='best')
@@ -263,7 +288,7 @@ class Experiment:
 if __name__ == "__main__":
     experiment = Experiment(experiment_parameters['1a'])
     experiment.load_classifier_data(summary=True)
-    experiment.load_stage1_models(summary=False)
+    experiment.load_stage1_models(summary=False, file='classifier-save-01-5.666-0.000.hdf5')
 
     experiment.find_classifier_LR()
 
@@ -279,7 +304,7 @@ if __name__ == "__main__":
         max_lr=MAX_LR,
         step_size=STEP_SIZE)
 
-    experiment.train_stage1(MIN_LR,batch_size,1,clr)
+    experiment.train_stage1(MIN_LR,batch_size,5,clr)
 
     experiment.test_stage1()
 

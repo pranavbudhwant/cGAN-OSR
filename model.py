@@ -252,7 +252,7 @@ def BuildGenerator(summary=True, bn_momentum=0.9, noise=False,
 def BuildDiscriminator(summary=True, in_shape = (32,32,3),
                        spectral_normalization=True, 
                        batch_normalization=False, bn_momentum=0.9, 
-                       bn_epsilon=0.00002, cbn=0,
+                       bn_epsilon=0.00002, embedding=0,
                        name='Discriminator', 
                        plot=False):
     
@@ -262,15 +262,15 @@ def BuildDiscriminator(summary=True, in_shape = (32,32,3),
     #     dense = DenseSN
     #     embedding = EmbeddingSN
     
-    if cbn:
+    if embedding:
         # label input
         in_label = Input(shape=(1,))
         # embedding for categorical input
         if spectral_normalization:
-            EmbeddingSN = SpectralNormalization(Embedding(cbn, 50))
+            EmbeddingSN = SpectralNormalization(Embedding(embedding, 50))
             li = EmbeddingSN(in_label)
         else:
-            li = Embedding(cbn, 50)(in_label)
+            li = Embedding(embedding, 50)(in_label)
         # scale up to image dimensions with linear activation
         n_nodes = in_shape[0] * in_shape[1]
 
@@ -329,7 +329,7 @@ def BuildDiscriminator(summary=True, in_shape = (32,32,3),
     else:
         model_output= Dense(1,kernel_initializer='glorot_uniform')(h)
     
-    if cbn:
+    if embedding:
         model = Model([in_image,in_label], model_output, name=name)
     else:
         model = Model(model_input, model_output, name=name)
@@ -510,9 +510,9 @@ if __name__ == '__main__':
     
     print('ResNet_Discriminator')
     #MNIST
-    model = BuildDiscriminator(cbn=10,in_shape=(28,28,1))
+    model = BuildDiscriminator(embedding=10,in_shape=(28,28,1))
     #CIFAR
-    model = BuildDiscriminator(cbn=10,in_shape=(32,32,3))
+    model = BuildDiscriminator(embedding=10,in_shape=(32,32,3))
     plot_model(model, show_shapes=True, to_file=DIR+'ResNet_Discriminator.png')
     
     

@@ -3,6 +3,7 @@ import sys
 sys.path.append("..")
 
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
 print("TF built with GPU support: ", tf.test.is_built_with_cuda())
 print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
@@ -10,14 +11,19 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 from tensorflow.keras.datasets import mnist, cifar10, cifar100
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model, Model
+from tensorflow.keras.layers import Input
+from tensorflow.keras.utils import Progbar
+
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix
 from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import joblib
 import os
+from time import time
 
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
@@ -27,7 +33,7 @@ from mpl_toolkits.mplot3d import Axes3D
 #Local modules
 from config import experiment_parameters
 from utils.data import onehotencode, get_mapped_labels
-from model import BuildEncoder, BuildClassifier, GlobalSumPooling2D
+from model import BuildEncoder, BuildClassifier, GlobalSumPooling2D, BuildGenerator, BuildDiscriminator
 from pyimagesearch.learningratefinder import LearningRateFinder
 from pyimagesearch.clr_callback import CyclicLR
 
@@ -39,6 +45,9 @@ def auroc(y_true, y_pred):
         return tf.py_function(roc_auc_score, (y_true, y_pred), tf.double)
     except:
         return -1
+
+def wasserstein_loss(y_true, y_pred):
+    return K.mean(y_true*y_pred)
 
 class Experiment:
     def __init__(self, experiment_params):
@@ -54,7 +63,6 @@ class Experiment:
             os.makedirs(BASE_DIR+self.params['debug']['dir'])
             print('Debug directory creted')
 
-    
     def load_classifier_data(self, summary=False):
         dataset_params = self.params['dataset']
         if dataset_params['name'] == 'MNIST':
@@ -159,7 +167,8 @@ class Experiment:
         #TODO Add training code for optional decoder
         
         #Configure checkpointing
-        filepath = BASE_DIR+self.params['checkpoint']['classifier_save_dir']+'classifier-save-{epoch:02d}-{loss:.3f}-{val_loss:.3f}.hdf5'
+        filepath = BASE_DIR+self.params['checkpoint']['classifier_save_dir']+\
+            'classifier-save-{epoch:02d}-{loss:.3f}-{val_loss:.3f}.hdf5'
         checkpoint = ModelCheckpoint(filepath, monitor='val_loss',
                              save_weights_only=False,
                              verbose=1, save_best_only=False, mode='min',
@@ -284,8 +293,198 @@ class Experiment:
                 #TODO tSNE 3D
                 pass
 
+    #For training cGAN w/ different loss formulations. Thus does not refer to Stage 2
+    def load_cGAN_data(self, summary=False):
+        dataset_params = self.params['dataset']
+        if dataset_params['name'] == 'MNIST':
+            dataset = mnist
+        elif dataset_params['name'] == 'CIFAR10':
+            dataset = cifar10
+        elif dataset_params['name'] == 'CIFAR100':
+            dataset = cifar100
+        else:
+            raise Exception("Undefined Dataset in Experiment Params")
+
+        #Load data
+        (x_train, y_train), (x_test, y_test) = dataset.load_data()
+
+        #Normalize
+        x_train = (x_train - 127.5)/127.5
+        x_test = (x_test - 127.5)/127.5
+
+        X = np.concatenate((x_test,x_train))
+        Y = np.concatenate((y_test,y_train))
+
+        if len(X.shape) < 4:
+            X = np.expand_dims(X, axis=-1)
+
+        self.X = X
+        self.Y = Y
+
+        if summary:
+            print('cGAN Data Loaded')
+            print('Shapes')
+            print('X: ', X.shape)
+            print('Y: ', Y.shape)
+
+    def load_cGAN_models(self, summary=False):
+        g_params = self.params['model_dict']['generator']
+        self.generator = BuildGenerator(cbn=g_params['cbn'],
+            noise = g_params['noise'],
+            resblock3=g_params['resblock3'],
+            spectral_normalization=g_params['SN'],
+            out_channels=g_params['out_channels'],
+            init_shape=g_params['init_shape'],
+            in_shape=g_params['in_shape'],
+            summary=summary)
+
+        #For WGAN, embedding = cbn of generator
+        self.discriminator = BuildDiscriminator(embedding=g_params['cbn'],
+            in_shape=self.params['dataset']['image_shape'],
+            summary=summary)
+
+        opt_params = self.params['stage2_optimizer']
+        #For training generator
+        Noise_input_for_training_generator = Input(shape=g_params['in_shape'])
+        Class_input_for_training_generator = Input(shape=(1,),dtype='int32')
+        Generated_image = self.generator([Noise_input_for_training_generator,
+                                        Class_input_for_training_generator])
+        Discriminator_output = self.discriminator([Generated_image,
+                                                Class_input_for_training_generator])
+
+        self.model_for_training_generator = Model([Noise_input_for_training_generator,
+                                            Class_input_for_training_generator], 
+                                            Discriminator_output)    
+        self.discriminator.trainable = False
+        self.model_for_training_generator.compile(optimizer=Adam(opt_params['lr'], 
+                                                    beta_1=opt_params['beta_1'], 
+                                                    beta_2=opt_params['beta_2']), 
+                                                loss=wasserstein_loss)
+        
+        if summary:
+            print("model_for_training_generator")
+            self.model_for_training_generator.summary()
+
+        #For training discriminator
+        Real_image = Input(shape=self.params['dataset']['image_shape'])
+        Noise_input_for_training_discriminator = Input(shape=g_params['in_shape'])
+        Class_input_for_training_generator = Input(shape=(1,),dtype='int32')
+        Fake_image = self.generator([Noise_input_for_training_discriminator,
+                                    Class_input_for_training_generator])
+
+        Discriminator_output_for_real = self.discriminator([Real_image,
+                                                        Class_input_for_training_generator])
+        Discriminator_output_for_fake = self.discriminator([Fake_image,
+                                                        Class_input_for_training_generator])
+
+        self.model_for_training_discriminator = Model([Real_image,
+                                                Noise_input_for_training_discriminator,
+                                                Class_input_for_training_generator],
+                                                [Discriminator_output_for_real,
+                                                Discriminator_output_for_fake])
+
+        self.generator.trainable = False
+        self.discriminator.trainable = True
+        self.model_for_training_discriminator.compile(optimizer=Adam(opt_params['lr'], 
+                                                        beta_1=opt_params['beta_1'], 
+                                                        beta_2=opt_params['beta_2']), 
+                                                loss=[wasserstein_loss, wasserstein_loss])
+
+        if summary:
+            print("model_for_training_discriminator")
+            self.model_for_training_discriminator.summary()
+
+    def train_cGAN(self, batch_size, epochs):
+        debug_params = self.params['debug_dict']
+
+        real_y = np.ones((batch_size, 1), dtype=np.float32)
+        fake_y = -real_y
+
+        test_noise = np.random.randn(debug_params['batch_size'], self.params['model']['latent_dim'])
+        test_class = self.Y[:debug_params['batch_size']]
+        
+        print('Test Classes: ', test_class)
+
+        image_dim = self.params['dataset']['image_shape'][0]
+        image_channels = self.params['dataset']['image_shape'][-1]
+        
+        W_loss = []
+        discriminator_loss = []
+        generator_loss = []
+        
+        for epoch in range(epochs):
+            self.X,self.Y = shuffle(self.X,self.Y)
+            
+            print("epoch {} of {}".format(epoch+1, epochs))
+            num_batches = int(self.X.shape[0] // batch_size)
+            
+            print("number of batches: {}".format(int(self.X.shape[0] // (batch_size))))
+            
+            progress_bar = Progbar(target=int(self.X.shape[0] // (batch_size * self.params['stage2_train']['training_ratio'])))
+            minibatches_size = batch_size * self.params['stage2_train']['training_ratio']
+            
+            start_time = time()
+            for index in range(int(self.X.shape[0] // (batch_size * self.params['stage2_train']['training_ratio']))):
+                progress_bar.update(index)
+                discriminator_minibatches_X = self.X[index * minibatches_size:(index + 1) * minibatches_size]
+                discriminator_minibatches_Y = self.Y[index * minibatches_size:(index + 1) * minibatches_size]
+                
+                for j in range(self.params['stage2_train']['training_ratio']):
+                    image_batch = discriminator_minibatches_X[j * batch_size : (j + 1) * batch_size]
+                    class_batch = discriminator_minibatches_Y[j * batch_size : (j + 1) * batch_size]
+                    noise = np.random.randn(batch_size, 128).astype(np.float32)
+                    self.discriminator.trainable = True
+                    self.generator.trainable = False
+                    discriminator_loss.append(self.model_for_training_discriminator.train_on_batch([image_batch, 
+                                                                                            noise, 
+                                                                                            class_batch],
+                                                                                            [real_y, fake_y]))
+                self.discriminator.trainable = False
+                self.generator.trainable = True
+                generator_loss.append(self.model_for_training_generator.train_on_batch([np.random.randn(batch_size, 128),
+                                                                                class_batch], real_y))
+            
+            print('\nepoch time: {}'.format(time()-start_time))
+            
+            W_real = self.model_for_training_generator.evaluate([test_noise,
+                                                            test_class], real_y)
+            print(W_real)
+            W_fake = self.model_for_training_generator.evaluate([test_noise,
+                                                            test_class], fake_y)
+            print(W_fake)
+            W_l = W_real+W_fake
+            print('wasserstein_loss: {}'.format(W_l))
+            W_loss.append(W_l)
+            #Generate image
+            generated_image = self.generator.predict([test_noise,
+                                                test_class])
+            generated_image = (generated_image+1)/2
+            for i in range(debug_params['num_rows']):
+                if image_channels == 1:
+                    new = generated_image[i*debug_params['num_rows']:\
+                                          i*debug_params['num_rows']+\
+                                              debug_params['num_rows']].reshape(\
+                                              image_dim*debug_params['num_rows'],image_dim)
+                else:
+                    new = generated_image[i*debug_params['num_rows']:\
+                                          i*debug_params['num_rows']+\
+                                        debug_params['num_rows']].reshape(\
+                                            image_dim*debug_params['num_rows'],image_dim,image_channels)
+                if i!=0:
+                    old = np.concatenate((old,new),axis=1)
+                else:
+                    old = new
+            print('plot generated_image')
+            
+            if image_channels == 1:
+                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old, cmap='gray')
+            else:
+                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old)
+
 
 if __name__ == "__main__":
+
+    #Debug Classifier Methods
     experiment = Experiment(experiment_parameters['1a'])
     experiment.load_classifier_data(summary=True)
     experiment.load_stage1_models(summary=False, file='classifier-save-01-5.666-0.000.hdf5')
@@ -305,7 +504,9 @@ if __name__ == "__main__":
         step_size=STEP_SIZE)
 
     experiment.train_stage1(MIN_LR,batch_size,5,clr)
-
     experiment.test_stage1()
-
     experiment.visualize_classifier_embeddings()
+
+    #Debug cGAN methods
+
+    #Debug cGAN-OSR methods

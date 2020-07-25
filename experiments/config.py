@@ -77,6 +77,7 @@ generator_dict['cbn'] = setup['dataset']['n_known']
 generator_dict['init_shape'] = (7,7,256) #For MNIST ---TODO for remaining
 generator_dict['in_shape'] = (model_dict['latent_dim'],)
 generator_dict['resblock3'] = False
+
 if not setup['dataset']['name'] == 'MNIST':
     generator_dict['resblock3'] = True
 model_dict['generator'] = generator_dict
@@ -89,6 +90,7 @@ elif setup['mismatch_expected_discriminator'] == 'mismatch':
     discriminator_dict['n_classes'] = setup['dataset']['n_known'] + 2 #N+2 Way Classification
 elif setup['mismatch_expected_discriminator'] == 'invert':
     discriminator_dict['n_classes'] = 2*setup['dataset']['n_known'] + 1 #2N+1 Way Classification
+
 model_dict['discriminator'] = discriminator_dict
 setup['model'] = model_dict
 

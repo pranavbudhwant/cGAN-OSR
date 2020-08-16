@@ -53,11 +53,16 @@ class Experiment:
     def __init__(self, experiment_params):
         self.params = experiment_params
 
-        #Make checkpoint dirs
+        #Make classifier_save checkpoint dirs
         if not os.path.exists(BASE_DIR+self.params['checkpoint']['classifier_save_dir']):
             os.makedirs(BASE_DIR+self.params['checkpoint']['classifier_save_dir'])
             print('Classifier checkpoint directory created')
-        
+
+        #Make cGAN_save checkpoint dirs
+        if not os.path.exists(BASE_DIR+self.params['checkpoint']['cGAN_save_dir']):
+            os.makedirs(BASE_DIR+self.params['checkpoint']['cGAN_save_dir'])
+            print('cGAN checkpoint directory created')
+
         #Make debug dir
         if not os.path.exists(BASE_DIR+self.params['debug']['dir']):
             os.makedirs(BASE_DIR+self.params['debug']['dir'])
@@ -327,7 +332,30 @@ class Experiment:
             print('X: ', X.shape)
             print('Y: ', Y.shape)
 
-    def load_cGAN_models(self, summary=False):
+    def load_cGAN_models(self, epoch=None, summary=False):
+        if epoch:
+            cGAN_save_dir = BASE_DIR+self.params['checkpoint']['cGAN_save_dir']+'/'
+            self.model_for_training_generator = load_model(cGAN_save_dir+\
+                'model_for_training_generator_epoch_{:d}.h5'.format(epoch))
+            self.model_for_training_discriminator = load_model(cGAN_save_dir+\
+                'model_for_training_discriminator_epoch_{:d}.h5'.format(epoch))
+            self.generator = load_model(cGAN_save_dir+\
+                'generator_epoch_{:d}.h5'.format(epoch))
+            self.discriminator = load_model(cGAN_save_dir+\
+                'discriminator_epoch_{:d}.h5'.format(epoch))
+            if summary:
+                print("Generator")
+                self.generator.summary()
+                print("Discriminator")
+                self.discriminator.summary()
+                print("model_for_training_generator")
+                self.model_for_training_generator.summary()
+                print("model_for_training_discriminator")
+                self.model_for_training_discriminator.summary()
+
+            return
+
+
         g_params = self.params['model_dict']['generator']
         self.generator = BuildGenerator(cbn=g_params['cbn'],
             noise = g_params['noise'],
@@ -396,6 +424,7 @@ class Experiment:
 
     def train_cGAN(self, batch_size, epochs):
         debug_params = self.params['debug_dict']
+        cGAN_save_dir = BASE_DIR+self.params['checkpoint']['cGAN_save_dir']+'/'
 
         real_y = np.ones((batch_size, 1), dtype=np.float32)
         fake_y = -real_y
@@ -443,6 +472,15 @@ class Experiment:
                 self.generator.trainable = True
                 generator_loss.append(self.model_for_training_generator.train_on_batch([np.random.randn(batch_size, 128),
                                                                                 class_batch], real_y))
+                
+                self.model_for_training_generator.save(cGAN_save_dir + \
+                    'model_for_training_generator_epoch_{:d}.h5'.format(epoch))
+                self.model_for_training_discriminator.save(cGAN_save_dir + \
+                    'model_for_training_discriminator_epoch_{:d}.h5'.format(epoch))
+                self.generator.save(cGAN_save_dir + 'generator_epoch_{:d}.h5'.format(epoch))
+                self.discriminator.save(cGAN_save_dir + 'discriminator_epoch_{:d}.h5'.format(epoch))
+
+                print('Models saved @ '+cGAN_save_dir)
             
             print('\nepoch time: {}'.format(time()-start_time))
             

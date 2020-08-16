@@ -97,6 +97,7 @@ setup['model'] = model_dict
 #Checkpointing Settings
 checkpoint_dict = {}
 checkpoint_dict['classifier_save_dir'] = 'models/classifier/'+setup['dataset']['name']+'/'
+checkpoint_dict['cGAN_save_dir'] = 'models/cGAN/'+setup['dataset']['name']+'/'
 setup['checkpoint'] = checkpoint_dict
 
 #Setup Approaches

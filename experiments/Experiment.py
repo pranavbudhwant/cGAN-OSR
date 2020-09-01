@@ -299,7 +299,7 @@ class Experiment:
                 pass
 
     #For training cGAN w/ different loss formulations. Thus does not refer to Stage 2
-    def load_cGAN_data(self, summary=False):
+    def load_cGAN_data(self, percent=1, summary=True):
         dataset_params = self.params['dataset']
         if dataset_params['name'] == 'MNIST':
             dataset = mnist
@@ -319,6 +319,12 @@ class Experiment:
 
         X = np.concatenate((x_test,x_train))
         Y = np.concatenate((y_test,y_train))
+
+        X, Y = shuffle(X, Y, random_state=10)
+        
+        #Keep percent% of data
+        X = X[:int(len(X)*percent)]
+        Y = Y[:int(len(Y)*percent)]
 
         if len(X.shape) < 4:
             X = np.expand_dims(X, axis=-1)
@@ -356,8 +362,11 @@ class Experiment:
             return
 
 
-        g_params = self.params['model_dict']['generator']
-        self.generator = BuildGenerator(cbn=g_params['cbn'],
+        g_params = self.params['model']['generator']
+        ds_dict = self.params['dataset']
+
+        #For WGAN, cbn = number of classes
+        self.generator = BuildGenerator(cbn=ds_dict['n_classes'],
             noise = g_params['noise'],
             resblock3=g_params['resblock3'],
             spectral_normalization=g_params['SN'],
@@ -366,8 +375,8 @@ class Experiment:
             in_shape=g_params['in_shape'],
             summary=summary)
 
-        #For WGAN, embedding = cbn of generator
-        self.discriminator = BuildDiscriminator(embedding=g_params['cbn'],
+        #For WGAN, embedding = number of classes
+        self.discriminator = BuildDiscriminator(embedding=ds_dict['n_classes'],
             in_shape=self.params['dataset']['image_shape'],
             summary=summary)
 
@@ -423,7 +432,7 @@ class Experiment:
             self.model_for_training_discriminator.summary()
 
     def train_cGAN(self, batch_size, epochs):
-        debug_params = self.params['debug_dict']
+        debug_params = self.params['debug']
         cGAN_save_dir = BASE_DIR+self.params['checkpoint']['cGAN_save_dir']+'/'
 
         real_y = np.ones((batch_size, 1), dtype=np.float32)
@@ -431,6 +440,8 @@ class Experiment:
 
         test_noise = np.random.randn(debug_params['batch_size'], self.params['model']['latent_dim'])
         test_class = self.Y[:debug_params['batch_size']]
+        test_real_y = np.ones((debug_params['batch_size'], 1), dtype=np.float32)
+        test_fake_y = -test_real_y
         
         print('Test Classes: ', test_class)
 
@@ -445,7 +456,7 @@ class Experiment:
             self.X,self.Y = shuffle(self.X,self.Y)
             
             print("epoch {} of {}".format(epoch+1, epochs))
-            num_batches = int(self.X.shape[0] // batch_size)
+            #num_batches = int(self.X.shape[0] // batch_size)
             
             print("number of batches: {}".format(int(self.X.shape[0] // (batch_size))))
             
@@ -473,22 +484,22 @@ class Experiment:
                 generator_loss.append(self.model_for_training_generator.train_on_batch([np.random.randn(batch_size, 128),
                                                                                 class_batch], real_y))
                 
-                self.model_for_training_generator.save(cGAN_save_dir + \
-                    'model_for_training_generator_epoch_{:d}.h5'.format(epoch))
-                self.model_for_training_discriminator.save(cGAN_save_dir + \
-                    'model_for_training_discriminator_epoch_{:d}.h5'.format(epoch))
-                self.generator.save(cGAN_save_dir + 'generator_epoch_{:d}.h5'.format(epoch))
-                self.discriminator.save(cGAN_save_dir + 'discriminator_epoch_{:d}.h5'.format(epoch))
+            self.model_for_training_generator.save(cGAN_save_dir + \
+                'model_for_training_generator_epoch_{:d}.h5'.format(epoch))
+            self.model_for_training_discriminator.save(cGAN_save_dir + \
+                'model_for_training_discriminator_epoch_{:d}.h5'.format(epoch))
+            self.generator.save(cGAN_save_dir + 'generator_epoch_{:d}.h5'.format(epoch))
+            self.discriminator.save(cGAN_save_dir + 'discriminator_epoch_{:d}.h5'.format(epoch))
 
-                print('Models saved @ '+cGAN_save_dir)
+            print('Models saved @ '+cGAN_save_dir)
             
             print('\nepoch time: {}'.format(time()-start_time))
             
             W_real = self.model_for_training_generator.evaluate([test_noise,
-                                                            test_class], real_y)
+                                                            test_class], test_real_y)
             print(W_real)
             W_fake = self.model_for_training_generator.evaluate([test_noise,
-                                                            test_class], fake_y)
+                                                            test_class], test_fake_y)
             print(W_fake)
             W_l = W_real+W_fake
             print('wasserstein_loss: {}'.format(W_l))
@@ -515,36 +526,40 @@ class Experiment:
             print('plot generated_image')
             
             if image_channels == 1:
-                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old, cmap='gray')
+                plt.imsave('{}cGAN_epoch_{}.png'.format(BASE_DIR+debug_params['dir'], epoch), old, cmap='gray')
             else:
-                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old)
+                plt.imsave('{}cGAN_epoch_{}.png'.format(BASE_DIR+debug_params['dir'], epoch), old)
 
 
 if __name__ == "__main__":
 
     #Debug Classifier Methods
-    experiment = Experiment(experiment_parameters['1a'])
-    experiment.load_classifier_data(summary=True)
-    experiment.load_stage1_models(summary=False, file='classifier-save-01-5.666-0.000.hdf5')
+    # experiment = Experiment(experiment_parameters['1a'])
+    # experiment.load_classifier_data(summary=True)
+    # experiment.load_stage1_models(summary=False, file='classifier-save-01-5.666-0.000.hdf5')
 
-    experiment.find_classifier_LR()
+    # experiment.find_classifier_LR()
 
-    nsamples = experiment.x_train.shape[0]
-    batch_size = 128
-    MIN_LR = 1e-6
-    MAX_LR = 1e-4
-    STEP_SIZE = 2*np.ceil((nsamples/float(batch_size)))
-    CLR_METHOD = "triangular2"
-    clr = CyclicLR(
-        mode=CLR_METHOD,
-        base_lr=MIN_LR,
-        max_lr=MAX_LR,
-        step_size=STEP_SIZE)
+    # nsamples = experiment.x_train.shape[0]
+    # batch_size = 128
+    # MIN_LR = 1e-6
+    # MAX_LR = 1e-4
+    # STEP_SIZE = 2*np.ceil((nsamples/float(batch_size)))
+    # CLR_METHOD = "triangular2"
+    # clr = CyclicLR(
+    #     mode=CLR_METHOD,
+    #     base_lr=MIN_LR,
+    #     max_lr=MAX_LR,
+    #     step_size=STEP_SIZE)
 
-    experiment.train_stage1(MIN_LR,batch_size,5,clr)
-    experiment.test_stage1()
-    experiment.visualize_classifier_embeddings()
+    # experiment.train_stage1(MIN_LR,batch_size,5,clr)
+    # experiment.test_stage1()
+    # experiment.visualize_classifier_embeddings()
 
     #Debug cGAN methods
+    experiment = Experiment(experiment_parameters['1a'])
+    experiment.load_cGAN_data(percent=0.001, summary=True)
+    experiment.load_cGAN_models(summary=False)
+    experiment.train_cGAN(batch_size=8, epochs=1)
 
     #Debug cGAN-OSR methods

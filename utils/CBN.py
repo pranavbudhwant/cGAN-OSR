@@ -84,6 +84,21 @@ class ConditionalAffine(Layer):
     def compute_output_shape(self, input_shape):
         return input_shape[0]
 
+    #If not overridden, throws "NotImplementedError: Layer ConditionalAffine has arguments in `__init__` and therefore must override `get_config`."
+    def get_config(self):
+        config = super().get_config().copy()
+        config.update({
+            'axis': self.axis,
+            'num_classes': self.num_classes,
+            'beta_initializer': self.beta_initializer,
+            'gamma_initializer': self.gamma_initializer,
+            'beta_regularizer': self.beta_regularizer,
+            'gamma_regularizer': self.gamma_regularizer,
+            'beta_constraint': self.beta_constraint,
+            'gamma_constraint': self.gamma_constraint
+        })
+        return config
+
 class ConditionalBatchNormalization(Layer):
     def __init__(self,
                  axis=-1,

@@ -40,7 +40,6 @@ class GlobalSumPooling2D(GlobalPooling2D):
         else:
             return K.sum(inputs, axis=[2, 3])
 
-
 def ResBlock(input_shape, sampling=None, trainable_sortcut=True, 
              spectral_normalization=False, batch_normalization=True,
              bn_momentum=0.9, bn_epsilon=0.00002, cbn=0,
@@ -267,8 +266,9 @@ def BuildDiscriminator(summary=True, in_shape = (32,32,3),
         in_label = Input(shape=(1,))
         # embedding for categorical input
         if spectral_normalization:
-            EmbeddingSN = SpectralNormalization(Embedding(embedding, 50))
-            li = EmbeddingSN(in_label)
+            # EmbeddingSN = SpectralNormalization(Embedding(embedding, 50))
+            # li = EmbeddingSN(in_label)
+            li = Embedding(embedding, 50)(in_label)
         else:
             li = Embedding(embedding, 50)(in_label)
         # scale up to image dimensions with linear activation
@@ -411,7 +411,6 @@ def BuildDiscriminatorCS(summary=True, in_shape = (32,32,3),
     if feat:
         return model, model_feat
     return model
-
 
 def BuildEncoder(summary=True, in_shape = (32,32,3),
                  name='Encoder',latent_dim = 128, plot=False):

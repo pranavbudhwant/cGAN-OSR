@@ -38,9 +38,9 @@ setup['mismatch_expected_discriminator'] = 'fake' #image #mismatch #invert
 
 #Training Settings - TODO Separate dict for stage1, stage2 training
 train_dict = {}
-train_dict['batch_size'] = 64
+#train_dict['batch_size'] = 64
+#train_dict['epochs'] = 150
 train_dict['training_ratio'] = 2
-train_dict['epochs'] = 150
 train_dict['sample_mismatch_every_epoch'] = True
 setup['stage2_train'] = train_dict
 

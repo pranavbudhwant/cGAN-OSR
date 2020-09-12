@@ -322,7 +322,7 @@ class Experiment:
                 #TODO tSNE 3D
                 pass
 
-    def load_cGAN_OSR_data(self , summary=False):
+    def load_cGAN_OSR_data(self, percent=1, summary=False):
         dataset_params = self.params['dataset']
         if dataset_params['name'] == 'MNIST':
             dataset = mnist
@@ -345,51 +345,74 @@ class Experiment:
         (x_train_known_mismatch, y_train_known_mismatch, y_train_known_mismatch_mapped, y_train_known_mismatch_mapped_ohe),\
         (x_train_unknown) = get_known_unknown_data(x_train,y_train,dataset_params['known_classes'],dataset_params['known_class_mapping'],dataset_params['unknown_classes'],unknown=True)
 
-        (x_test_known,x_test_known_classwise,y_test_known,y_test_known_mapped,y_test_known_mapped_ohe),\
-        (x_test_known_mismatch, y_test_known_mismatch, y_test_known_mismatch_mapped, y_test_known_mismatch_mapped_ohe),\
-        (x_test_unknown) = get_known_unknown_data(x_test,y_test,dataset_params['known_classes'],dataset_params['known_class_mapping'],dataset_params['unknown_classes'],unknown=True)
+        # (x_test_known,x_test_known_classwise,y_test_known,y_test_known_mapped,y_test_known_mapped_ohe),\
+        # (x_test_known_mismatch, y_test_known_mismatch, y_test_known_mismatch_mapped, y_test_known_mismatch_mapped_ohe),\
+        # (x_test_unknown) = get_known_unknown_data(x_test,y_test,dataset_params['known_classes'],dataset_params['known_class_mapping'],dataset_params['unknown_classes'],unknown=True)
 
-        self.x_train_known = x_train_known
+        self.x_train_known = x_train_known[:int(len(x_train_known)*percent)]
         self.x_train_known_classwise = x_train_known_classwise
-        self.y_train_known = y_train_known
-        self.y_train_known_mapped = y_train_known_mapped
-        self.y_train_known_mapped_ohe = y_train_known_mapped_ohe
-        self.x_train_known_mismatch = x_train_known_mismatch
-        self.y_train_known_mismatch = y_train_known_mismatch
-        self.y_train_known_mismatch_mapped = y_train_known_mismatch_mapped
-        self.y_train_known_mismatch_mapped_ohe = y_train_known_mismatch_mapped_ohe
-        self.x_train_unknown = x_train_unknown
+        self.y_train_known = y_train_known[:int(len(y_train_known)*percent)]
+        self.y_train_known_mapped = y_train_known_mapped[:int(len(y_train_known_mapped)*percent)]
+        self.y_train_known_mapped_ohe = y_train_known_mapped_ohe[:int(len(y_train_known_mapped_ohe)*percent)]
+        self.x_train_known_mismatch = x_train_known_mismatch[:int(len(x_train_known_mismatch)*percent)]
+        self.y_train_known_mismatch = y_train_known_mismatch[:int(len(y_train_known_mismatch)*percent)]
+        self.y_train_known_mismatch_mapped = y_train_known_mismatch_mapped[:int(len(y_train_known_mismatch_mapped)*percent)]
+        self.y_train_known_mismatch_mapped_ohe = y_train_known_mismatch_mapped_ohe[:int(len(y_train_known_mismatch_mapped_ohe)*percent)]
+        self.x_train_unknown = x_train_unknown[:int(len(x_train_unknown)*percent)]
 
-        self.x_test_known = x_test_known
-        self.x_test_known_classwise = x_test_known_classwise
-        self.y_test_known = y_test_known
-        self.y_test_known_mapped = y_test_known_mapped
-        self.y_test_known_mapped_ohe = y_test_known_mapped_ohe
-        self.x_test_known_mismatch = x_test_known_mismatch
-        self.y_test_known_mismatch = y_test_known_mismatch
-        self.y_test_known_mismatch_mapped = y_test_known_mismatch_mapped
-        self.y_test_known_mismatch_mapped_ohe = y_test_known_mismatch_mapped_ohe
-        self.x_test_unknown = x_test_unknown
+        # self.x_test_known = x_test_known
+        # self.x_test_known_classwise = x_test_known_classwise
+        # self.y_test_known = y_test_known
+        # self.y_test_known_mapped = y_test_known_mapped
+        # self.y_test_known_mapped_ohe = y_test_known_mapped_ohe
+        # self.x_test_known_mismatch = x_test_known_mismatch
+        # self.y_test_known_mismatch = y_test_known_mismatch
+        # self.y_test_known_mismatch_mapped = y_test_known_mismatch_mapped
+        # self.y_test_known_mismatch_mapped_ohe = y_test_known_mismatch_mapped_ohe
+        # self.x_test_unknown = x_test_unknown
+
+        if summary:
+            print(dataset_params['name'])
+            print('Known Classes: ', dataset_params['known_classes'])
+
+            print('Train Match Shapes')
+            print('x_train_known: ', self.x_train_known.shape)
+            print('y_train_known: ', self.y_train_known.shape)
+            print('y_train_known_mapped: ', self.y_train_known_mapped.shape)
+            print('y_train_known_mapped_ohe: ', self.y_train_known_mapped_ohe.shape)
+
+            print('Train Mismatch Shapes')
+            print('x_train_known_mismatch: ', self.x_train_known_mismatch.shape)
+            print('y_train_known_mismatch: ', self.y_train_known_mismatch.shape)
+            print('y_train_known_mismatch_mapped: ', self.y_train_known_mismatch_mapped.shape)
+            print('y_train_known_mismatch_mapped_ohe: ', self.y_train_known_mismatch_mapped_ohe.shape)
 
     def build_model_for_training_generator(self, summary=False):
         Image_input_for_encoder = Input(shape=self.params['dataset']['image_shape'])
+        model_inputs = [Image_input_for_encoder]
+        
         Encoder_output = self.encoder(Image_input_for_encoder)
-        Noise_input_for_training_generator = Input(shape=self.params['model']['generator']['in_shape'])
-
-        #Merged_inputs = Concatenate()([Encoder_output,
-        #                              Noise_input_for_training_generator])
+        generator_match_inputs = [Encoder_output]
+        generator_mismatch_inputs = [Encoder_output]
+        
+        if self.params['model']['generator']['noise']:
+            Noise_input_for_training_generator = Input(shape=self.params['model']['generator']['in_shape'])
+            generator_match_inputs.append(Noise_input_for_training_generator)
+            generator_mismatch_inputs.append(Noise_input_for_training_generator)
+            model_inputs.append(Noise_input_for_training_generator)
 
         opt_params = self.params['stage2_optimizer']
 
         Match_class_input_for_training_generator = Input(shape=(1,),dtype='int32')
         Mismatch_class_input_for_training_generator = Input(shape=(1,),dtype='int32')
 
-        Match_Generated_image = self.generator([Encoder_output,
-                                                Noise_input_for_training_generator,
-                                                Match_class_input_for_training_generator])
-        Mismatch_Generated_image = self.generator([Encoder_output,
-                                                    Noise_input_for_training_generator,
-                                                    Mismatch_class_input_for_training_generator])
+        generator_match_inputs.append(Match_class_input_for_training_generator)
+        model_inputs.append(Match_class_input_for_training_generator)
+        generator_mismatch_inputs.append(Mismatch_class_input_for_training_generator)
+        model_inputs.append(Mismatch_class_input_for_training_generator)
+
+        Match_Generated_image = self.generator(generator_match_inputs)
+        Mismatch_Generated_image = self.generator(generator_mismatch_inputs)
 
         Match_discriminator_output = self.discriminator(Match_Generated_image)
         Match_discriminator_feat_output = self.discriminator_feat(Match_Generated_image)
@@ -397,10 +420,7 @@ class Experiment:
         Mismatch_discriminator_output = self.discriminator(Mismatch_Generated_image)
         Mismatch_discriminator_feat_output = self.discriminator_feat(Mismatch_Generated_image)
 
-        self.model_for_training_generator = Model([Image_input_for_encoder,
-                                                    Noise_input_for_training_generator,
-                                                    Match_class_input_for_training_generator,
-                                                    Mismatch_class_input_for_training_generator], 
+        self.model_for_training_generator = Model(model_inputs, 
                                                     [Match_discriminator_output, Match_discriminator_feat_output,
                                                     Mismatch_discriminator_output, Mismatch_discriminator_feat_output])
 
@@ -432,22 +452,28 @@ class Experiment:
         #WLOSS
         Real_image = Input(shape=self.params['dataset']['image_shape'])
         Mismatch_Real_image = Input(shape=self.params['dataset']['image_shape'])
+        model_inputs = [Real_image, Mismatch_Real_image]
+
+        Encoder_output = self.encoder(Real_image)
+        generator_match_inputs = [Encoder_output]
+        generator_mismatch_inputs = [Encoder_output]
+
+        if self.params['model']['generator']['noise']:
+            Noise_input_for_training_discriminator = Input(shape=self.params['model']['generator']['in_shape'])
+            generator_match_inputs.append(Noise_input_for_training_discriminator)
+            generator_mismatch_inputs.append(Noise_input_for_training_discriminator)
+            model_inputs.append(Noise_input_for_training_discriminator)
 
         Match_class_input_for_training_generator = Input(shape=(1,),dtype='int32')
         Mismatch_class_input_for_training_generator = Input(shape=(1,),dtype='int32')
 
-        Encoder_output = self.encoder(Real_image)
+        generator_match_inputs.append(Match_class_input_for_training_generator)
+        model_inputs.append(Match_class_input_for_training_generator)
+        generator_mismatch_inputs.append(Mismatch_class_input_for_training_generator)
+        model_inputs.append(Mismatch_class_input_for_training_generator)
 
-        Noise_input_for_training_discriminator = Input(shape=self.params['model']['generator']['in_shape'])
-        #Merged_inputs = Concatenate()([Encoder_output,
-        #                              Noise_input_for_training_discriminator])
-
-        Match_Fake_image = self.generator([Encoder_output,
-                                            Noise_input_for_training_discriminator,
-                                            Match_class_input_for_training_generator])
-        Mismatch_Fake_image = self.generator([Encoder_output,
-                                                Noise_input_for_training_discriminator,
-                                                Mismatch_class_input_for_training_generator])
+        Match_Fake_image = self.generator(generator_match_inputs)
+        Mismatch_Fake_image = self.generator(generator_mismatch_inputs)
 
         Discriminator_output_for_real = self.discriminator(Real_image)
         Discriminator_output_for_mismatch_real = self.discriminator(Mismatch_Real_image)
@@ -455,11 +481,7 @@ class Experiment:
         Discriminator_output_for_match_fake = self.discriminator(Match_Fake_image)
         Discriminator_output_for_mismatch_fake = self.discriminator(Mismatch_Fake_image)
 
-        self.model_for_training_discriminator = Model([Real_image,
-                                                        Mismatch_Real_image,
-                                                        Noise_input_for_training_discriminator,
-                                                        Match_class_input_for_training_generator,
-                                                        Mismatch_class_input_for_training_generator],
+        self.model_for_training_discriminator = Model(model_inputs,
                                                         [Discriminator_output_for_real,
                                                         Discriminator_output_for_mismatch_real,
                                                         Discriminator_output_for_match_fake,
@@ -486,7 +508,10 @@ class Experiment:
         self.load_stage1_models(file=classifier_file)
 
         #Build Generator
-        g_params = self.params['model_dict']['generator']
+        g_params = self.params['model']['generator']
+        if summary:
+            print(g_params)
+
         self.generator = BuildGenerator(cbn=g_params['cbn'],
             noise = g_params['noise'],
             resblock3=g_params['resblock3'],
@@ -496,11 +521,24 @@ class Experiment:
             in_shape=g_params['in_shape'],
             summary=summary)
 
+        if summary:
+            print("Generator Inputs")
+            print(self.generator.inputs)
+            print("Generator Outputs")
+            print(self.generator.outputs)
+
         #Build Discriminators
         self.discriminator, self.discriminator_feat = BuildDiscriminatorCS(num_classes=len(self.params['dataset']['known_classes']),
                                                                             in_shape=self.params['dataset']['image_shape'],
                                                                             feat=True,
                                                                             summary=summary)
+        if summary:
+            print("Discriminator Inputs")
+            print(self.discriminator.inputs)
+            print(self.discriminator_feat.inputs)
+            print("Discriminator Outputs")
+            print(self.discriminator.outputs)
+            print(self.discriminator_feat.outputs)
 
         #Build model for training Generator
         self.build_model_for_training_generator(summary=summary)
@@ -508,7 +546,7 @@ class Experiment:
         #Build Model for training Discriminators
         self.build_model_for_training_discriminator(summary=summary)
 
-    def train_stage_2(self , batch_size , epochs):
+    def train_stage_2(self , batch_size , epochs, debug=False):
         debug_params = self.params['debug']
         train_params = self.params['stage2_train']
 
@@ -516,9 +554,15 @@ class Experiment:
         fake_y = np.ones_like(self.y_train_known_mismatch_mapped_ohe)*-1
         fake_y[:,0] = 1
 
-        print(self.y_train_known_mismatch_mapped[:5])
-        print(self.y_train_known_mismatch_mapped_ohe[:5])
-        print(fake_y[:5])
+        if debug:
+            print('\ny_train_known_mismatch_mapped:')
+            print(self.y_train_known_mismatch_mapped[:5])
+            
+            print('\ny_train_known_mismatch_mapped_ohe:')
+            print(self.y_train_known_mismatch_mapped_ohe[:5])
+
+            print('\nfake_y:')
+            print(fake_y[:5])
 
         assert np.sum(self.y_train_known_mismatch_mapped_ohe[:,0])*-1 == len(self.y_train_known_mismatch_mapped_ohe)
         assert np.sum(fake_y[:,0]) == len(fake_y)
@@ -542,7 +586,9 @@ class Experiment:
 
         test_fake_ohe = fake_y[:int(debug_params['batch_size']/2)]
 
-        print(test_class)
+        print('\nTest Class:')
+        print(np.array(test_class).reshape((debug_params['num_rows'], 4)))
+        print()
 
         image_dim = 28 #32
         image_channels = 1 #3
@@ -694,12 +740,13 @@ class Experiment:
             print('plot generated_image')
             
             if image_channels == 1:
-                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old, cmap='gray')
+                plt.imsave('{}SN_epoch_{}.png'.format(BASE_DIR+debug_params['dir'], epoch), old, cmap='gray')
             else:
-                plt.imsave('{}/SN_epoch_{}.png'.format(debug_params['dir'], epoch), old)
+                plt.imsave('{}SN_epoch_{}.png'.format(BASE_DIR+debug_params['dir'], epoch), old)
 
     #For training cGAN w/ different loss formulations. Thus does not refer to Stage 2
     def load_cGAN_data(self, percent=1, summary=True):
+        #TODO Noise toggle support, input/output variation support
         dataset_params = self.params['dataset']
         if dataset_params['name'] == 'MNIST':
             dataset = mnist
@@ -963,4 +1010,7 @@ if __name__ == "__main__":
     # experiment.train_cGAN(batch_size=8, epochs=1)
 
     #Debug cGAN-OSR methods
-    pass
+    experiment = Experiment(experiment_parameters['1a'])
+    experiment.load_cGAN_OSR_data(percent=0.001, summary=True)
+    experiment.load_cGAN_OSR_models(classifier_file='classifier-save-01-5.666-0.000.hdf5', summary=False)
+    experiment.train_stage_2(batch_size=8, epochs=1, debug=False)

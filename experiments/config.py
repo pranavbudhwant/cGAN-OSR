@@ -67,7 +67,7 @@ model_dict['bn_epsilon'] = 2e-5
 
 #Generator Settings
 generator_dict = {}
-generator_dict['noise'] = False
+generator_dict['noise'] = True
 generator_dict['SN'] = True #Spectral Normalization
 generator_dict['out_channels'] = setup['dataset']['image_shape'][-1]
 generator_dict['lambda'] = 0.95 #FM Loss Weight; CS Weight = 1-FM Weight

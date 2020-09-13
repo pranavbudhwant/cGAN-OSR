@@ -11,7 +11,7 @@ print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
 from tensorflow.keras.datasets import mnist, cifar10, cifar100
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.models import load_model, Model
+from tensorflow.keras.models import load_model, Model, save_model
 from tensorflow.keras.layers import Input
 from tensorflow.keras.utils import Progbar
 
@@ -35,6 +35,8 @@ from config import experiment_parameters
 from utils.data import onehotencode,sample_known_unknown_classes,\
 sample_mismatch_labels,sample_mismatch_images,get_classwise, get_mapped_labels,\
 get_mismatch_data, get_known_unknown_data
+from utils.SN import SpectralNormalization
+from utils.CBN import ConditionalAffine
 from model import BuildEncoder, BuildClassifier, GlobalSumPooling2D, BuildGenerator, BuildDiscriminator, BuildDiscriminatorCS
 from pyimagesearch.learningratefinder import LearningRateFinder
 from pyimagesearch.clr_callback import CyclicLR
@@ -86,6 +88,11 @@ class Experiment:
         if not os.path.exists(BASE_DIR+self.params['checkpoint']['cGAN_save_dir']):
             os.makedirs(BASE_DIR+self.params['checkpoint']['cGAN_save_dir'])
             print('cGAN checkpoint directory created')
+
+        #Make cGAN_OSR_save checkpoint dirs
+        if not os.path.exists(BASE_DIR+self.params['checkpoint']['cGAN_OSR_save_dir']):
+            os.makedirs(BASE_DIR+self.params['checkpoint']['cGAN_OSR_save_dir'])
+            print('cGAN_OSR checkpoint directory created')
 
         #Make debug dir
         if not os.path.exists(BASE_DIR+self.params['debug']['dir']):
@@ -503,53 +510,101 @@ class Experiment:
             print("model_for_training_discriminator")
             self.model_for_training_discriminator.summary()
 
-    def load_cGAN_OSR_models(self, classifier_file, summary=False):
+    def load_cGAN_OSR_models(self, classifier_file, load_epoch=None, summary=False):
         
         self.load_stage1_models(file=classifier_file)
 
-        #Build Generator
-        g_params = self.params['model']['generator']
-        if summary:
-            print(g_params)
+        if load_epoch is not None:
+            cGAN_OSR_save_dir = BASE_DIR+self.params['checkpoint']['cGAN_OSR_save_dir']
+            
+            self.model_for_training_generator = load_model(cGAN_OSR_save_dir + \
+                'model_for_training_generator_epoch_{:d}'.format(load_epoch),
+                custom_objects={'GlobalSumPooling2D':GlobalSumPooling2D,
+                                'ConditionalAffine':ConditionalAffine})
+            #,'SpectralNormalization':SpectralNormalization
+            # self.model_for_training_discriminator = load_model(cGAN_OSR_save_dir + \
+            #     'model_for_training_discriminator_epoch_{:d}.h5'.format(load_epoch),
+            #     custom_objects={'GlobalSumPooling2D':GlobalSumPooling2D,
+            #                     'SpectralNormalization':SpectralNormalization,
+            #                     'ConditionalAffine':ConditionalAffine})
+            
+            # self.generator = load_model(cGAN_OSR_save_dir + 'generator_epoch_{:d}.h5'.format(load_epoch))
+            
+            # self.discriminator = load_model(cGAN_OSR_save_dir + 'discriminator_epoch_{:d}.h5'.format(load_epoch))
+            
+            # self.discriminator_feat = load_model(cGAN_OSR_save_dir + 'discriminator_feat_epoch_{:d}.h5'.format(load_epoch))
 
-        self.generator = BuildGenerator(cbn=g_params['cbn'],
-            noise = g_params['noise'],
-            resblock3=g_params['resblock3'],
-            spectral_normalization=g_params['SN'],
-            out_channels=g_params['out_channels'],
-            init_shape=g_params['init_shape'],
-            in_shape=g_params['in_shape'],
-            summary=summary)
+            if summary:
+                # print("\nGenerator")
+                # self.generator.summary()
+                # print("\nGenerator Inputs")
+                # print(self.generator.inputs)
+                # print("\nGenerator Outputs")
+                # print(self.generator.outputs)
 
-        if summary:
-            print("Generator Inputs")
-            print(self.generator.inputs)
-            print("Generator Outputs")
-            print(self.generator.outputs)
+                # print("\nDiscriminator")
+                # self.discriminator.summary()
+                # self.discriminator_feat.summary()
+                # print("\nDiscriminator Inputs")
+                # print(self.discriminator.inputs)
+                # print(self.discriminator_feat.inputs)
+                # print("\nDiscriminator Outputs")
+                # print(self.discriminator.outputs)
+                # print(self.discriminator_feat.outputs)
 
-        #Build Discriminators
-        self.discriminator, self.discriminator_feat = BuildDiscriminatorCS(num_classes=len(self.params['dataset']['known_classes']),
-                                                                            in_shape=self.params['dataset']['image_shape'],
-                                                                            feat=True,
-                                                                            summary=summary)
-        if summary:
-            print("Discriminator Inputs")
-            print(self.discriminator.inputs)
-            print(self.discriminator_feat.inputs)
-            print("Discriminator Outputs")
-            print(self.discriminator.outputs)
-            print(self.discriminator_feat.outputs)
+                
+                print("\nmodel_for_training_generator")
+                self.model_for_training_generator.summary()
+                
+                # print("\nmodel_for_training_discriminator")
+                # self.model_for_training_discriminator.summary()
+            return
 
-        #Build model for training Generator
-        self.build_model_for_training_generator(summary=summary)
+        else:
+            #Build Generator
+            g_params = self.params['model']['generator']
+            if summary:
+                print(g_params)
 
-        #Build Model for training Discriminators
-        self.build_model_for_training_discriminator(summary=summary)
+            self.generator = BuildGenerator(cbn=g_params['cbn'],
+                noise = g_params['noise'],
+                resblock3=g_params['resblock3'],
+                spectral_normalization=g_params['SN'],
+                out_channels=g_params['out_channels'],
+                init_shape=g_params['init_shape'],
+                in_shape=g_params['in_shape'],
+                summary=summary)
 
-    def train_stage_2(self , batch_size , epochs, debug=False):
+            if summary:
+                print("Generator Inputs")
+                print(self.generator.inputs)
+                print("Generator Outputs")
+                print(self.generator.outputs)
+
+            #Build Discriminators
+            self.discriminator, self.discriminator_feat = BuildDiscriminatorCS(num_classes=len(self.params['dataset']['known_classes']),
+                                                                                in_shape=self.params['dataset']['image_shape'],
+                                                                                feat=True,
+                                                                                summary=summary)
+            if summary:
+                print("Discriminator Inputs")
+                print(self.discriminator.inputs)
+                print(self.discriminator_feat.inputs)
+                print("Discriminator Outputs")
+                print(self.discriminator.outputs)
+                print(self.discriminator_feat.outputs)
+
+            #Build model for training Generator
+            self.build_model_for_training_generator(summary=summary)
+
+            #Build Model for training Discriminators
+            self.build_model_for_training_discriminator(summary=summary)
+
+    def train_stage_2(self, batch_size, epochs, debug=False, load_epoch=None):
         debug_params = self.params['debug']
         train_params = self.params['stage2_train']
-
+        cGAN_OSR_save_dir = BASE_DIR+self.params['checkpoint']['cGAN_OSR_save_dir']
+        
         #0th index is considered as fake in loss formulation, 
         fake_y = np.ones_like(self.y_train_known_mismatch_mapped_ohe)*-1
         fake_y[:,0] = 1
@@ -566,7 +621,6 @@ class Experiment:
 
         assert np.sum(self.y_train_known_mismatch_mapped_ohe[:,0])*-1 == len(self.y_train_known_mismatch_mapped_ohe)
         assert np.sum(fake_y[:,0]) == len(fake_y)
-
         
         #Set the test data
         test_noise = np.random.randn(int(debug_params['batch_size']/2), self.params['model']['latent_dim'])
@@ -682,7 +736,23 @@ class Experiment:
                                                                                 mismatch_feat_batch]))
             
             print('\nepoch time: {}'.format(time()-start_time))
-                
+            
+            # save_model(model=self.model_for_training_generator,
+            #             filepath=cGAN_OSR_save_dir + \
+            #             'model_for_training_generator_epoch_{:d}'.format(epoch),
+            #             save_format='tf')
+
+            self.model_for_training_generator.save(cGAN_OSR_save_dir + \
+                'model_for_training_generator_epoch_{:d}'.format(epoch),
+                save_format='h5')
+            # self.model_for_training_discriminator.save(cGAN_OSR_save_dir + \
+            #     'model_for_training_discriminator_epoch_{:d}.h5'.format(epoch))
+            # self.generator.save(cGAN_OSR_save_dir + 'generator_epoch_{:d}.h5'.format(epoch))
+            # self.discriminator.save(cGAN_OSR_save_dir + 'discriminator_epoch_{:d}.h5'.format(epoch))
+            # self.discriminator_feat.save(cGAN_OSR_save_dir + 'discriminator_feat_epoch_{:d}.h5'.format(epoch))
+
+            print('Models saved @ '+cGAN_OSR_save_dir)
+            
             test_feat_batch = self.discriminator_feat.predict_on_batch(test_images)
             #test_mismatch_feat_batch = discriminator_feat.predict_on_batch(test_mismatch_images)
             test_mismatch_feat_batch = self.discriminator_feat.predict_on_batch(test_mismatch_noise)
@@ -1010,7 +1080,8 @@ if __name__ == "__main__":
     # experiment.train_cGAN(batch_size=8, epochs=1)
 
     #Debug cGAN-OSR methods
+    experiment_parameters['1a']['model']['generator']['SN']=False
     experiment = Experiment(experiment_parameters['1a'])
     experiment.load_cGAN_OSR_data(percent=0.001, summary=True)
-    experiment.load_cGAN_OSR_models(classifier_file='classifier-save-01-5.666-0.000.hdf5', summary=False)
+    experiment.load_cGAN_OSR_models(classifier_file='classifier-save-01-5.666-0.000.hdf5',load_epoch=None, summary=False)
     experiment.train_stage_2(batch_size=8, epochs=1, debug=False)

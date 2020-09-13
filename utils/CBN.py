@@ -67,17 +67,20 @@ class ConditionalAffine(Layer):
     def call(self, inputs):
         input_shape = K.int_shape(inputs[0])
         in_shape = K.shape(inputs[0])
-        input_class = inputs[1]
+        input_class = tf.cast(inputs[1], tf.int32)
         dim = input_shape[self.axis]
         
         #Only supports NHWC
         ndim = len(input_shape)
         shape = tf.stack( [in_shape[0]] +[1]*(ndim-2) + [dim] )
         
-        gamma = K.reshape(tf.gather(self.gamma,input_class),shape)
-        beta = K.reshape(tf.gather(self.beta,input_class),shape)
+        gamma = tf.stack(values=self.gamma, axis=0)
+        beta = tf.stack(values=self.beta, axis=0)
+
+        _gamma = K.reshape(tf.gather(params=gamma,indices=input_class,axis=0),shape)
+        _beta = K.reshape(tf.gather(params=beta,indices=input_class,axis=0),shape)
         
-        scaled_shifted = inputs[0]*gamma + beta
+        scaled_shifted = inputs[0]*_gamma + _beta
         
         return scaled_shifted
         

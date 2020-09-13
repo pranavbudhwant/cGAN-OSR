@@ -59,13 +59,13 @@ class SpectralNormalization(layers.Wrapper):
         w_reshaped = array_ops.reshape(self.w, [-1, self.w_shape[-1]])
         eps = 1e-12
         _u = array_ops.identity(self.u)
-        _v = math_ops.matmul(_u, array_ops.transpose(w_reshaped))
+        _v = math_ops.matmul(_u, array_ops.transpose(w_reshaped, perm=None))
         _v = _v / math_ops.maximum(math_ops.reduce_sum(_v**2)**0.5, eps)
         _u = math_ops.matmul(_v, w_reshaped)
         _u = _u / math_ops.maximum(math_ops.reduce_sum(_u**2)**0.5, eps)
 
         self.u.assign(_u)
-        sigma = math_ops.matmul(math_ops.matmul(_v, w_reshaped), array_ops.transpose(_u))
+        sigma = math_ops.matmul(math_ops.matmul(_v, w_reshaped), array_ops.transpose(_u, perm=None))
 
         self.layer.kernel.assign(self.w / sigma)
 

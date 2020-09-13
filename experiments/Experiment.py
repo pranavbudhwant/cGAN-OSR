@@ -31,7 +31,7 @@ import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 
 #Local modules
-from config import experiment_parameters
+#from config import experiment_parameters
 from utils.data import onehotencode,sample_known_unknown_classes,\
 sample_mismatch_labels,sample_mismatch_images,get_classwise, get_mapped_labels,\
 get_mismatch_data, get_known_unknown_data
@@ -40,7 +40,7 @@ from pyimagesearch.learningratefinder import LearningRateFinder
 from pyimagesearch.clr_callback import CyclicLR
 
 
-BASE_DIR = 'D:/dev/cGAN-OSR/'
+BASE_DIR = 'cGAN-OSR/'
 
 def auroc(y_true, y_pred):
     try:
@@ -155,6 +155,7 @@ class Experiment:
 
     def load_stage1_models(self, summary=True, file=None):
         if file:
+            print(file)
             self.classifier = load_model(BASE_DIR+self.params['checkpoint']['classifier_save_dir']+file,
                                 custom_objects={'GlobalSumPooling2D':GlobalSumPooling2D,
                                 'auroc':auroc})
@@ -1013,4 +1014,3 @@ if __name__ == "__main__":
     experiment = Experiment(experiment_parameters['1a'])
     experiment.load_cGAN_OSR_data(percent=0.001, summary=True)
     experiment.load_cGAN_OSR_models(classifier_file='classifier-save-01-5.666-0.000.hdf5', summary=False)
-    experiment.train_stage_2(batch_size=8, epochs=1, debug=False)

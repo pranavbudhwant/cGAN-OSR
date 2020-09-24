@@ -4,8 +4,8 @@
 
 
 #### TO-DO Experiments
-- [] Eliminate classifier, discriminator acts as classifier
-- [] Use discriminator only for real/fake detection
+- [ ] Eliminate classifier, discriminator acts as classifier
+- [ ] Use discriminator only for real/fake detection
 ##### Stage 1
 - [ ] Without Autoencoder Training
 - [ ] With Autoencoder Training, to ensure encoder captures all information required for reconstruction
